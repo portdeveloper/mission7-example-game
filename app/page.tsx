@@ -1,13 +1,10 @@
 "use client";
-import {usePrivy} from '@privy-io/react-auth';
+import AuthComponent from './components/AuthComponent';
 
 export default function Home() {
-  const {ready} = usePrivy();
-
-  if (!ready) {
-    return <div>Loading...</div>;
-  }
-
-  // Now it's safe to use other Privy hooks and state
-  return <div>Privy is ready!</div>;
+  return (
+    <div className="min-h-screen flex items-center justify-center p-8">
+      <AuthComponent />
+    </div>
+  );
 }
