@@ -37,66 +37,46 @@ export default function AuthComponent() {
   }, [authenticated, user, ready]);
 
   if (!ready) {
-    return <div>Loading...</div>;
+    return <div className="text-white text-sm">Loading...</div>;
   }
 
   if (!authenticated) {
     return (
-      <div className="flex flex-col items-center gap-4">
-        <h2 className="text-xl font-semibold">Please login to continue</h2>
-        <button 
-          onClick={login}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          Login
-        </button>
-      </div>
+      <button 
+        onClick={login}
+        className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+      >
+        Login
+      </button>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <h2 className="text-xl font-semibold">Authentication Status</h2>
-      
+    <div className="flex items-center gap-2 text-sm">
       {accountAddress ? (
-        <div className="text-center space-y-4">
-          <p className="text-green-600 mb-2">Connected to Monad Games ID</p>
-          <p className="text-sm font-mono bg-gray-100 p-2 rounded">
-            Wallet: {accountAddress}
-          </p>
-          
-          {isLoadingUser ? (
-            <p className="text-blue-600">Checking username...</p>
-          ) : userError ? (
-            <p className="text-red-600">Error loading user data: {userError}</p>
-          ) : hasUsername && monadUser ? (
-            <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-green-700 font-semibold">Welcome, {monadUser.username}!</p>
-              <p className="text-sm text-green-600">User ID: {monadUser.id}</p>
-            </div>
+        <>
+          {hasUsername && monadUser ? (
+            <span className="text-green-400">Welcome, {monadUser.username}!</span>
           ) : (
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <p className="text-yellow-700 mb-3">You haven&apos;t reserved a username yet.</p>
-              <a 
-                href="https://monad-games-id-site.vercel.app"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 inline-block"
-              >
-                Register Username
-              </a>
-            </div>
+            <a 
+              href="https://monad-games-id-site.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-yellow-600 text-white px-2 py-1 rounded text-xs hover:bg-yellow-700"
+            >
+              Register Username
+            </a>
           )}
-        </div>
+        </>
       ) : message ? (
-        <p className="text-red-600">{message}</p>
+        <span className="text-red-400 text-xs">{message}</span>
       ) : (
-        <p className="text-yellow-600">Checking account status...</p>
+        <span className="text-yellow-400 text-xs">Checking...</span>
       )}
       
       <button 
         onClick={logout}
-        className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+        className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
       >
         Logout
       </button>
