@@ -1,10 +1,10 @@
 "use client";
-import AuthComponent from './components/AuthComponent';
+import SpaceShooterGame from './components/SpaceShooterGame';
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-8">
-      <AuthComponent />
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <SpaceShooterGame />
     </div>
   );
 }
