@@ -7,10 +7,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
       config={{
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: "users-without-wallets",
-          },
+        loginMethodsAndOrder: {
+          primary: ["privy:cmd8euall0037le0my79qpz42"],
         },
       }}
     >
