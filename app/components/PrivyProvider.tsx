@@ -3,9 +3,17 @@
 import { PrivyProvider } from "@privy-io/react-auth";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
+  // During build time or when no app ID is provided, render children without Privy
+  if (!privyAppId) {
+    console.warn('NEXT_PUBLIC_PRIVY_APP_ID is not set. Privy authentication will not be available.');
+    return <>{children}</>;
+  }
+
   return (
     <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
+      appId={privyAppId}
       config={{
         loginMethodsAndOrder: {
           // Don't forget to enable Monad Games ID support in:

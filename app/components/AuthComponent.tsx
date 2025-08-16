@@ -6,7 +6,17 @@ import {
 } from "@privy-io/react-auth";
 import { useMonadGamesUser } from "../hooks/useMonadGamesUser";
 
-export default function AuthComponent() {
+// Separate component for when Privy is not configured
+function AuthNotConfigured() {
+  return (
+    <div className="text-yellow-400 text-sm">
+      Authentication not configured
+    </div>
+  );
+}
+
+// Main auth component with Privy hooks
+function PrivyAuth() {
   const { authenticated, user, ready, logout, login } = usePrivy();
   const [accountAddress, setAccountAddress] = useState<string>("");
   const [message, setMessage] = useState<string>("");
@@ -82,4 +92,15 @@ export default function AuthComponent() {
       </button>
     </div>
   );
+}
+
+// Main component that conditionally renders based on Privy configuration
+export default function AuthComponent() {
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  
+  if (!privyAppId) {
+    return <AuthNotConfigured />;
+  }
+  
+  return <PrivyAuth />;
 }
