@@ -4,11 +4,19 @@ import {
   usePrivy,
   CrossAppAccountWithMetadata,
 } from "@privy-io/react-auth";
+import { useMonadGamesUser } from "../hooks/useMonadGamesUser";
 
 export default function AuthComponent() {
   const { authenticated, user, ready, logout, login } = usePrivy();
   const [accountAddress, setAccountAddress] = useState<string>("");
   const [message, setMessage] = useState<string>("");
+  
+  const { 
+    user: monadUser, 
+    hasUsername, 
+    isLoading: isLoadingUser, 
+    error: userError 
+  } = useMonadGamesUser(accountAddress);
 
   useEffect(() => {
     // Check if privy is ready and user is authenticated
@@ -19,7 +27,7 @@ export default function AuthComponent() {
         const crossAppAccount: CrossAppAccountWithMetadata = user.linkedAccounts.filter(account => account.type === "cross_app" && account.providerApp.id === "cmd8euall0037le0my79qpz42")[0] as CrossAppAccountWithMetadata;
 
         // The first embedded wallet created using Monad Games ID, is the wallet address
-        if (crossAppAccount.embeddedWallets.length > 0) {
+        if (crossAppAccount && crossAppAccount.embeddedWallets.length > 0) {
           setAccountAddress(crossAppAccount.embeddedWallets[0].address);
         }
       } else {
@@ -51,11 +59,34 @@ export default function AuthComponent() {
       <h2 className="text-xl font-semibold">Authentication Status</h2>
       
       {accountAddress ? (
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <p className="text-green-600 mb-2">Connected to Monad Games ID</p>
           <p className="text-sm font-mono bg-gray-100 p-2 rounded">
             Wallet: {accountAddress}
           </p>
+          
+          {isLoadingUser ? (
+            <p className="text-blue-600">Checking username...</p>
+          ) : userError ? (
+            <p className="text-red-600">Error loading user data: {userError}</p>
+          ) : hasUsername && monadUser ? (
+            <div className="bg-green-50 p-4 rounded-lg">
+              <p className="text-green-700 font-semibold">Welcome, {monadUser.username}!</p>
+              <p className="text-sm text-green-600">User ID: {monadUser.id}</p>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 p-4 rounded-lg">
+              <p className="text-yellow-700 mb-3">You haven&apos;t reserved a username yet.</p>
+              <a 
+                href="https://monad-games-id-site.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 inline-block"
+              >
+                Register Username
+              </a>
+            </div>
+          )}
         </div>
       ) : message ? (
         <p className="text-red-600">{message}</p>
