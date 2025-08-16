@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
+import { ScoreSubmissionManager } from '../lib/score-api';
+import { GAME_CONFIG } from '../lib/game-config';
 
 interface GameObject {
   x: number;
@@ -29,12 +31,21 @@ const ENEMY_SPEED = 2;
 const ENEMY_SPAWN_RATE = 0.02;
 const ENEMY_SHOOT_COOLDOWN = 1000;
 
-export default function SpaceShooterGame() {
+interface SpaceShooterGameProps {
+  playerAddress?: string;
+}
+
+export default function SpaceShooterGame({ playerAddress }: SpaceShooterGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [lastSubmittedScore, setLastSubmittedScore] = useState(0);
+  const [isSubmittingScore, setIsSubmittingScore] = useState(false);
+  
+  // Score submission manager
+  const scoreManagerRef = useRef<ScoreSubmissionManager | null>(null);
 
   const gameStateRef = useRef({
     player: { x: GAME_WIDTH / 2 - 15, y: GAME_HEIGHT - 50, width: 30, height: 30, speed: PLAYER_SPEED, health: 1 } as Player,
@@ -275,9 +286,59 @@ export default function SpaceShooterGame() {
     };
   }, []);
 
+  // Initialize score submission manager
+  useEffect(() => {
+    if (playerAddress) {
+      scoreManagerRef.current = new ScoreSubmissionManager(playerAddress);
+    }
+
+    return () => {
+      if (scoreManagerRef.current) {
+        scoreManagerRef.current.destroy();
+        scoreManagerRef.current = null;
+      }
+    };
+  }, [playerAddress]);
+
+  // Handle score submission when score changes
+  useEffect(() => {
+    if (scoreManagerRef.current && score > lastSubmittedScore) {
+      const scoreIncrease = score - lastSubmittedScore;
+      scoreManagerRef.current.addScore(scoreIncrease);
+      scoreManagerRef.current.addTransaction(1); // Each score increase counts as a transaction
+      setLastSubmittedScore(score);
+    }
+  }, [score, lastSubmittedScore]);
+
+  // Submit final score when game ends
+  useEffect(() => {
+    if (gameOver && scoreManagerRef.current && score > 0) {
+      setIsSubmittingScore(true);
+      scoreManagerRef.current.submitImmediately().then((result) => {
+        setIsSubmittingScore(false);
+        if (result.success) {
+          console.log('Final score submitted:', result.transactionHash);
+        } else {
+          console.error('Failed to submit final score:', result.error);
+        }
+      });
+    }
+  }, [gameOver, score]);
+
   return (
     <div className="flex flex-col items-center gap-4 p-4">
-      <div className="text-white text-2xl font-bold">Score: {score}</div>
+      <div className="flex items-center gap-4">
+        <div className="text-white text-2xl font-bold">Score: {score}</div>
+        {playerAddress && (
+          <div className="text-sm">
+            {isSubmittingScore ? (
+              <span className="text-yellow-400">Submitting score...</span>
+            ) : (
+              <span className="text-green-400">Game: {GAME_CONFIG.METADATA.name}</span>
+            )}
+          </div>
+        )}
+      </div>
       
       <div className="relative">
         <canvas

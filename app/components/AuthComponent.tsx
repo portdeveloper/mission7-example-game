@@ -16,7 +16,7 @@ function AuthNotConfigured() {
 }
 
 // Main auth component with Privy hooks
-function PrivyAuth() {
+function PrivyAuth({ onAddressChange }: { onAddressChange: (address: string) => void }) {
   const { authenticated, user, ready, logout, login } = usePrivy();
   const [accountAddress, setAccountAddress] = useState<string>("");
   const [message, setMessage] = useState<string>("");
@@ -38,13 +38,19 @@ function PrivyAuth() {
 
         // The first embedded wallet created using Monad Games ID, is the wallet address
         if (crossAppAccount && crossAppAccount.embeddedWallets.length > 0) {
-          setAccountAddress(crossAppAccount.embeddedWallets[0].address);
+          const address = crossAppAccount.embeddedWallets[0].address;
+          setAccountAddress(address);
+          onAddressChange(address);
         }
       } else {
         setMessage("You need to link your Monad Games ID account to continue.");
       }
+    } else {
+      // Clear address when not authenticated
+      setAccountAddress("");
+      onAddressChange("");
     }
-  }, [authenticated, user, ready]);
+  }, [authenticated, user, ready, onAddressChange]);
 
   if (!ready) {
     return <div className="text-white text-sm">Loading...</div>;
@@ -95,12 +101,12 @@ function PrivyAuth() {
 }
 
 // Main component that conditionally renders based on Privy configuration
-export default function AuthComponent() {
+export default function AuthComponent({ onAddressChange }: { onAddressChange: (address: string) => void }) {
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   
   if (!privyAppId) {
     return <AuthNotConfigured />;
   }
   
-  return <PrivyAuth />;
+  return <PrivyAuth onAddressChange={onAddressChange} />;
 }

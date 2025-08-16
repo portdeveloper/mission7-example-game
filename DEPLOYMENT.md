@@ -38,6 +38,14 @@ Before deploying to Vercel, make sure to set the following environment variables
 
 ## Testing Your Deployment:
 
+### Automated Testing (Development):
+For local testing, run the included test script:
+```bash
+npm run dev  # Start your dev server
+node test-score-api.js  # Run the test script
+```
+
+### Manual API Testing:
 After deployment, test these endpoints:
 
 1. **Update Player Data:**
@@ -58,8 +66,15 @@ After deployment, test these endpoints:
 
 3. **Get Player Data Per Game:**
    ```bash
-   curl https://your-app.vercel.app/api/get-player-data-per-game?playerAddress=0x...&gameAddress=0x...
+   curl https://your-app.vercel.app/api/get-player-data-per-game?playerAddress=0x...&gameAddress=0xf5ea577f39318dc012d5Cbbf2d447FdD76c48523
    ```
+
+### In-Game Testing:
+1. **Login with Privy** - Connect your Monad Games ID
+2. **Play the Space Shooter Game** - Score points by shooting enemies
+3. **Check Blockchain Stats** - Click "Show Blockchain Stats" button (bottom-right)
+4. **Monitor Submissions** - Watch for "Submitting score..." status in the UI
+5. **Verify on Explorer** - Check your transactions on [Monad Explorer](https://testnet.monadexplorer.com/)
 
 ## Troubleshooting:
 
