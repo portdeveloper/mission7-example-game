@@ -12,7 +12,8 @@
     "@privy-io/react-auth": "^2.21.3",
     "next": "15.4.6",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "viem": "^2.33.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

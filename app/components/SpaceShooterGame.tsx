@@ -31,7 +31,7 @@ const ENEMY_SHOOT_COOLDOWN = 1000;
 
 export default function SpaceShooterGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gameLoopRef = useRef<number>();
+  const gameLoopRef = useRef<number>(0);
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
