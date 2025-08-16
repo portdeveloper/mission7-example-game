@@ -10,7 +10,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         loginMethodsAndOrder: {
           // Don't forget to enable Monad Games ID support in:
           // Global Wallet > Integrations > Monad Games ID (click on the slide to enable)
-          primary: ["privy:cmd8euall0037le0my79qpz42"],
+          primary: ["privy:cmd8euall0037le0my79qpz42"], // This is the Cross App ID, DO NOT CHANGE THIS
         },
       }}
     >
