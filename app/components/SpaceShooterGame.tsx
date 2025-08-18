@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
-import { ScoreSubmissionManager } from '../lib/score-api';
+import { submitPlayerScore } from '../lib/score-api';
 import { GAME_CONFIG } from '../lib/game-config';
 
 interface GameObject {
@@ -42,10 +42,6 @@ export default function SpaceShooterGame({ playerAddress }: SpaceShooterGameProp
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [lastSubmittedScore, setLastSubmittedScore] = useState(0);
-  const [isSubmittingScore, setIsSubmittingScore] = useState(false);
-  
-  // Score submission manager
-  const scoreManagerRef = useRef<ScoreSubmissionManager | null>(null);
 
   const gameStateRef = useRef({
     player: { x: GAME_WIDTH / 2 - 15, y: GAME_HEIGHT - 50, width: 30, height: 30, speed: PLAYER_SPEED, health: 1 } as Player,
@@ -286,44 +282,23 @@ export default function SpaceShooterGame({ playerAddress }: SpaceShooterGameProp
     };
   }, []);
 
-  // Initialize score submission manager
-  useEffect(() => {
-    if (playerAddress) {
-      scoreManagerRef.current = new ScoreSubmissionManager(playerAddress);
-    }
 
-    return () => {
-      if (scoreManagerRef.current) {
-        scoreManagerRef.current.destroy();
-        scoreManagerRef.current = null;
-      }
-    };
-  }, [playerAddress]);
-
-  // Handle score submission when score changes
+  // Handle score submission when score changes - each increase is a separate transaction
   useEffect(() => {
-    if (scoreManagerRef.current && score > lastSubmittedScore) {
+    if (playerAddress && score > lastSubmittedScore) {
       const scoreIncrease = score - lastSubmittedScore;
-      scoreManagerRef.current.addScore(scoreIncrease);
-      scoreManagerRef.current.addTransaction(1); // Each score increase counts as a transaction
-      setLastSubmittedScore(score);
-    }
-  }, [score, lastSubmittedScore]);
-
-  // Submit final score when game ends
-  useEffect(() => {
-    if (gameOver && scoreManagerRef.current && score > 0) {
-      setIsSubmittingScore(true);
-      scoreManagerRef.current.submitImmediately().then((result) => {
-        setIsSubmittingScore(false);
+      // Each score increase is immediately submitted as a transaction to the blockchain
+      submitPlayerScore(playerAddress, scoreIncrease, 1).then((result) => {
         if (result.success) {
-          console.log('Final score submitted:', result.transactionHash);
+          console.log('Score increase submitted:', result.transactionHash);
         } else {
-          console.error('Failed to submit final score:', result.error);
+          console.error('Failed to submit score increase:', result.error);
         }
       });
+      setLastSubmittedScore(score);
     }
-  }, [gameOver, score]);
+  }, [score, lastSubmittedScore, playerAddress]);
+
 
   return (
     <div className="flex flex-col items-center gap-4 p-4">
@@ -331,11 +306,7 @@ export default function SpaceShooterGame({ playerAddress }: SpaceShooterGameProp
         <div className="text-white text-2xl font-bold">Score: {score}</div>
         {playerAddress && (
           <div className="text-sm">
-            {isSubmittingScore ? (
-              <span className="text-yellow-400">Submitting score...</span>
-            ) : (
-              <span className="text-green-400">Game: {GAME_CONFIG.METADATA.name}</span>
-            )}
+            <span className="text-green-400">Game: {GAME_CONFIG.METADATA.name}</span>
           </div>
         )}
       </div>
