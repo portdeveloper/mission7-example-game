@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
-import { submitPlayerScore } from '../lib/score-api';
+import { TransactionQueue } from '../lib/score-api';
 import { GAME_CONFIG } from '../lib/game-config';
+import toast from 'react-hot-toast';
 
 interface GameObject {
   x: number;
@@ -42,6 +43,9 @@ export default function SpaceShooterGame({ playerAddress }: SpaceShooterGameProp
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [lastSubmittedScore, setLastSubmittedScore] = useState(0);
+  
+  // Transaction queue for handling retries
+  const transactionQueueRef = useRef<TransactionQueue | null>(null);
 
   const gameStateRef = useRef({
     player: { x: GAME_WIDTH / 2 - 15, y: GAME_HEIGHT - 50, width: 30, height: 30, speed: PLAYER_SPEED, health: 1 } as Player,
@@ -96,6 +100,8 @@ export default function SpaceShooterGame({ playerAddress }: SpaceShooterGameProp
     setGameStarted(true);
     setGameOver(false);
     setScore(0);
+    setLastSubmittedScore(0); // Reset this so transactions work again
+    
     gameStateRef.current = {
       player: { x: GAME_WIDTH / 2 - 15, y: GAME_HEIGHT - 50, width: 30, height: 30, speed: PLAYER_SPEED, health: 1 },
       enemies: [],
@@ -282,19 +288,96 @@ export default function SpaceShooterGame({ playerAddress }: SpaceShooterGameProp
     };
   }, []);
 
+  // Initialize transaction queue
+  useEffect(() => {
+    if (playerAddress && !transactionQueueRef.current) {
+      transactionQueueRef.current = new TransactionQueue();
+    }
+    
+    return () => {
+      if (transactionQueueRef.current) {
+        transactionQueueRef.current.destroy();
+        transactionQueueRef.current = null;
+      }
+    };
+  }, [playerAddress]);
+
 
   // Handle score submission when score changes - each increase is a separate transaction
   useEffect(() => {
-    if (playerAddress && score > lastSubmittedScore) {
+    if (playerAddress && transactionQueueRef.current && score > lastSubmittedScore) {
       const scoreIncrease = score - lastSubmittedScore;
-      // Each score increase is immediately submitted as a transaction to the blockchain
-      submitPlayerScore(playerAddress, scoreIncrease, 1).then((result) => {
-        if (result.success) {
-          console.log('Score increase submitted:', result.transactionHash);
-        } else {
-          console.error('Failed to submit score increase:', result.error);
+      
+      // Add transaction to queue with retry logic
+      transactionQueueRef.current.enqueue(
+        playerAddress,
+        scoreIncrease,
+        1,
+        {
+          onSuccess: (result) => {
+            toast.success(
+              `Transaction confirmed! +${scoreIncrease} points`,
+              {
+                duration: 3000,
+                icon: '🚀',
+              }
+            );
+            if (result.transactionHash) {
+              toast.success(
+                `TX: ${result.transactionHash.slice(0, 10)}...`,
+                {
+                  duration: 5000,
+                  icon: '📝',
+                  style: {
+                    fontSize: '12px',
+                  },
+                }
+              );
+            }
+          },
+          onFailure: (error) => {
+            const isPriorityError = error.includes('Another transaction has higher priority') || 
+                                    error.includes('higher priority');
+            
+            toast.error(
+              isPriorityError 
+                ? `Transaction congestion: ${scoreIncrease} points will retry with higher priority`
+                : `Transaction failed permanently: ${error}`,
+              {
+                duration: isPriorityError ? 4000 : 6000,
+                icon: isPriorityError ? '⚡' : '💀',
+              }
+            );
+          },
+          onRetry: (attempt) => {
+            toast(
+              `Retrying transaction... (${attempt}/5)`,
+              {
+                duration: 2000,
+                icon: '🔄',
+                style: {
+                  background: '#f59e0b',
+                  color: '#fff',
+                },
+              }
+            );
+          },
         }
-      });
+      );
+      
+      // Show initial submission toast
+      toast(
+        `Queuing +${scoreIncrease} points (batching for efficiency)`,
+        {
+          duration: 2500,
+          icon: '📦',
+          style: {
+            background: '#3b82f6',
+            color: '#fff',
+          },
+        }
+      );
+      
       setLastSubmittedScore(score);
     }
   }, [score, lastSubmittedScore, playerAddress]);
