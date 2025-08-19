@@ -3,35 +3,80 @@ import { createWalletClient, http } from 'viem';
 import { monadTestnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, isValidAddress } from '@/app/lib/blockchain';
+import { validateApiKey, validateOrigin, createAuthenticatedResponse } from '@/app/lib/auth';
+import { rateLimit } from '@/app/lib/rate-limiter';
+import { generateRequestId, isDuplicateRequest, markRequestProcessing, markRequestComplete } from '@/app/lib/request-deduplication';
 
 export async function POST(request: NextRequest) {
   try {
+    // Security checks
+    if (!validateApiKey(request)) {
+      return createAuthenticatedResponse({ error: 'Unauthorized: Invalid API key' }, 401);
+    }
+
+    if (!validateOrigin(request)) {
+      return createAuthenticatedResponse({ error: 'Forbidden: Invalid origin' }, 403);
+    }
+
+    // Rate limiting
+    const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const rateLimitResult = rateLimit(clientIp, { maxRequests: 10, windowMs: 60000 }); // 10 requests per minute
+    
+    if (!rateLimitResult.allowed) {
+      return createAuthenticatedResponse({
+        error: 'Too many requests',
+        resetTime: rateLimitResult.resetTime
+      }, 429);
+    }
+
     // Parse request body
     const { playerAddress, scoreAmount, transactionAmount } = await request.json();
 
     // Validate input
     if (!playerAddress || scoreAmount === undefined || transactionAmount === undefined) {
-      return NextResponse.json(
+      return createAuthenticatedResponse(
         { error: 'Missing required fields: playerAddress, scoreAmount, transactionAmount' },
-        { status: 400 }
+        400
       );
     }
 
     // Validate player address format
     if (!isValidAddress(playerAddress)) {
-      return NextResponse.json(
+      return createAuthenticatedResponse(
         { error: 'Invalid player address format' },
-        { status: 400 }
+        400
       );
     }
 
     // Validate that scoreAmount and transactionAmount are positive numbers
     if (scoreAmount < 0 || transactionAmount < 0) {
-      return NextResponse.json(
+      return createAuthenticatedResponse(
         { error: 'Score and transaction amounts must be non-negative' },
-        { status: 400 }
+        400
       );
     }
+
+    // Maximum limits to prevent abuse
+    const MAX_SCORE_PER_REQUEST = 10000;
+    const MAX_TRANSACTIONS_PER_REQUEST = 100;
+
+    if (scoreAmount > MAX_SCORE_PER_REQUEST || transactionAmount > MAX_TRANSACTIONS_PER_REQUEST) {
+      return createAuthenticatedResponse(
+        { error: `Amounts too large. Max score: ${MAX_SCORE_PER_REQUEST}, Max transactions: ${MAX_TRANSACTIONS_PER_REQUEST}` },
+        400
+      );
+    }
+
+    // Request deduplication
+    const requestId = generateRequestId(playerAddress, scoreAmount, transactionAmount);
+    if (isDuplicateRequest(requestId)) {
+      return createAuthenticatedResponse(
+        { error: 'Duplicate request detected. Please wait before retrying.' },
+        409
+      );
+    }
+
+    markRequestProcessing(requestId);
 
     // Get private key from environment variable
     const privateKey = process.env.WALLET_PRIVATE_KEY;
@@ -65,7 +110,9 @@ export async function POST(request: NextRequest) {
       ]
     });
 
-    return NextResponse.json({
+    markRequestComplete(requestId);
+
+    return createAuthenticatedResponse({
       success: true,
       transactionHash: hash,
       message: 'Player data updated successfully'
@@ -77,28 +124,28 @@ export async function POST(request: NextRequest) {
     // Handle specific viem errors
     if (error instanceof Error) {
       if (error.message.includes('insufficient funds')) {
-        return NextResponse.json(
+        return createAuthenticatedResponse(
           { error: 'Insufficient funds to complete transaction' },
-          { status: 400 }
+          400
         );
       }
       if (error.message.includes('execution reverted')) {
-        return NextResponse.json(
+        return createAuthenticatedResponse(
           { error: 'Contract execution failed - check if wallet has GAME_ROLE permission' },
-          { status: 400 }
+          400
         );
       }
       if (error.message.includes('AccessControlUnauthorizedAccount')) {
-        return NextResponse.json(
+        return createAuthenticatedResponse(
           { error: 'Unauthorized: Wallet does not have GAME_ROLE permission' },
-          { status: 403 }
+          403
         );
       }
     }
 
-    return NextResponse.json(
+    return createAuthenticatedResponse(
       { error: 'Failed to update player data' },
-      { status: 500 }
+      500
     );
   }
 }

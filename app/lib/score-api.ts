@@ -48,6 +48,7 @@ export async function submitPlayerScore(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': process.env.NEXT_PUBLIC_CLIENT_API_SECRET || '',
       },
       body: JSON.stringify({
         playerAddress,
