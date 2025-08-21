@@ -37,23 +37,66 @@ interface PlayerDataPerGameResponse {
   error?: string;
 }
 
+// Get session token for authenticated requests
+export async function getSessionToken(playerAddress: string): Promise<string | null> {
+  try {
+    // In a real implementation, you would sign a message with the user's wallet here
+    const message = `Authenticate for score submission: ${playerAddress}`;
+    const signedMessage = "dummy_signature"; // This should be replaced with actual wallet signing
+    
+    const response = await fetch('/api/get-session-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        playerAddress,
+        message,
+        signedMessage,
+      }),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.sessionToken;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting session token:', error);
+    return null;
+  }
+}
+
 // Submit player score and transaction data to the contract
 export async function submitPlayerScore(
   playerAddress: string,
   scoreAmount: number,
-  transactionAmount: number = 1
+  transactionAmount: number = 1,
+  sessionToken?: string
 ): Promise<ScoreSubmissionResponse> {
   try {
+    // Get session token if not provided
+    if (!sessionToken) {
+      sessionToken = await getSessionToken(playerAddress);
+      if (!sessionToken) {
+        return {
+          success: false,
+          error: 'Failed to authenticate. Please try again.',
+        };
+      }
+    }
+
     const response = await fetch('/api/update-player-data', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.NEXT_PUBLIC_CLIENT_API_SECRET || '',
       },
       body: JSON.stringify({
         playerAddress,
         scoreAmount,
         transactionAmount,
+        sessionToken,
       }),
     });
 

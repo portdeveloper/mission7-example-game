@@ -3,17 +3,13 @@ import { createWalletClient, http } from 'viem';
 import { monadTestnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, isValidAddress } from '@/app/lib/blockchain';
-import { validateApiKey, validateOrigin, createAuthenticatedResponse } from '@/app/lib/auth';
+import { validateSessionToken, validateOrigin, createAuthenticatedResponse } from '@/app/lib/auth';
 import { rateLimit } from '@/app/lib/rate-limiter';
 import { generateRequestId, isDuplicateRequest, markRequestProcessing, markRequestComplete } from '@/app/lib/request-deduplication';
 
 export async function POST(request: NextRequest) {
   try {
-    // Security checks
-    if (!validateApiKey(request)) {
-      return createAuthenticatedResponse({ error: 'Unauthorized: Invalid API key' }, 401);
-    }
-
+    // Security checks - Origin validation first
     if (!validateOrigin(request)) {
       return createAuthenticatedResponse({ error: 'Forbidden: Invalid origin' }, 403);
     }
@@ -30,7 +26,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const { playerAddress, scoreAmount, transactionAmount } = await request.json();
+    const { playerAddress, scoreAmount, transactionAmount, sessionToken } = await request.json();
+
+    // Session token authentication - verify the user controls the wallet
+    if (!sessionToken || !validateSessionToken(sessionToken, playerAddress)) {
+      return createAuthenticatedResponse({ error: 'Unauthorized: Invalid or expired session token' }, 401);
+    }
 
     // Validate input
     if (!playerAddress || scoreAmount === undefined || transactionAmount === undefined) {
@@ -56,13 +57,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Maximum limits to prevent abuse
-    const MAX_SCORE_PER_REQUEST = 10000;
-    const MAX_TRANSACTIONS_PER_REQUEST = 100;
+    // Maximum limits to prevent abuse - made more restrictive
+    const MAX_SCORE_PER_REQUEST = 1000; // Reduced from 10000
+    const MAX_TRANSACTIONS_PER_REQUEST = 10; // Reduced from 100
+    
+    // Additional validation: reasonable score ranges
+    const MIN_SCORE_PER_REQUEST = 1;
+    const MAX_SCORE_PER_TRANSACTION = 100; // Max 100 points per transaction
 
     if (scoreAmount > MAX_SCORE_PER_REQUEST || transactionAmount > MAX_TRANSACTIONS_PER_REQUEST) {
       return createAuthenticatedResponse(
         { error: `Amounts too large. Max score: ${MAX_SCORE_PER_REQUEST}, Max transactions: ${MAX_TRANSACTIONS_PER_REQUEST}` },
+        400
+      );
+    }
+
+    if (scoreAmount < MIN_SCORE_PER_REQUEST && scoreAmount !== 0) {
+      return createAuthenticatedResponse(
+        { error: `Score amount too small. Minimum: ${MIN_SCORE_PER_REQUEST}` },
+        400
+      );
+    }
+
+    // Validate score-to-transaction ratio to prevent unrealistic scores
+    if (transactionAmount > 0 && (scoreAmount / transactionAmount) > MAX_SCORE_PER_TRANSACTION) {
+      return createAuthenticatedResponse(
+        { error: `Score per transaction too high. Maximum: ${MAX_SCORE_PER_TRANSACTION} points per transaction` },
         400
       );
     }

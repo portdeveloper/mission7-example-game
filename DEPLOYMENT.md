@@ -11,10 +11,21 @@ Before deploying to Vercel, make sure to set the following environment variables
    - This wallet must have enough MON tokens for gas fees
    - Format: `0x...` (64 characters after 0x)
 
-2. **`NEXT_PUBLIC_PRIVY_APP_ID`**
+2. **`API_SECRET`**
+   - A secure random string used for authentication
+   - Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   - Keep this secret and never expose it publicly
+   - Example: `a1b2c3d4e5f6...` (64 character hex string)
+
+3. **`NEXT_PUBLIC_PRIVY_APP_ID`**
    - Your Privy App ID for authentication
    - Get this from your Privy Dashboard
    - This is a public environment variable (prefixed with `NEXT_PUBLIC_`)
+
+4. **`NEXT_PUBLIC_APP_URL`**
+   - Your app's public URL for CORS validation
+   - Example: `https://your-app.vercel.app`
+   - Must match your actual deployed URL exactly
 
 ## Vercel Deployment Steps:
 
@@ -29,12 +40,22 @@ Before deploying to Vercel, make sure to set the following environment variables
    - Vercel will automatically deploy when you push to your main branch
    - The build should now complete successfully
 
+## Security Features Implemented:
+
+✅ **Session-based Authentication**: Users must authenticate with their wallet to submit scores
+✅ **Origin Validation**: API calls only accepted from your domain
+✅ **Rate Limiting**: Prevents spam attacks (10 requests per minute per IP)
+✅ **Request Deduplication**: Prevents duplicate transactions
+✅ **Score Validation**: Realistic limits on score amounts and ratios
+✅ **User-Agent Filtering**: Blocks automated tools like curl/Postman
+
 ## Important Notes:
 
-- **Security**: The `WALLET_PRIVATE_KEY` is sensitive. Never commit it to your repository.
+- **Security**: The `WALLET_PRIVATE_KEY` and `API_SECRET` are sensitive. Never commit them to your repository.
 - **Role Permissions**: Ensure your wallet has `GAME_ROLE` on the contract `0xceCBFF203C8B6044F52CE23D914A1bfD997541A4`
 - **Gas Fees**: Keep your wallet funded with MON tokens for transaction fees
 - **Privy Setup**: Configure your Privy app to support Monad Games ID authentication
+- **URL Matching**: `NEXT_PUBLIC_APP_URL` must exactly match your deployed domain for security
 
 ## Testing Your Deployment:
 
