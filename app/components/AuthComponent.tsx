@@ -20,6 +20,7 @@ function PrivyAuth({ onAddressChange }: { onAddressChange: (address: string) => 
   const { authenticated, user, ready, logout, login } = usePrivy();
   const [accountAddress, setAccountAddress] = useState<string>("");
   const [message, setMessage] = useState<string>("");
+  const [copied, setCopied] = useState<boolean>(false);
   
   const { 
     user: monadUser, 
@@ -52,6 +53,23 @@ function PrivyAuth({ onAddressChange }: { onAddressChange: (address: string) => 
     }
   }, [authenticated, user, ready, onAddressChange]);
 
+  const copyToClipboard = async () => {
+    if (accountAddress) {
+      try {
+        await navigator.clipboard.writeText(accountAddress);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy address:', err);
+      }
+    }
+  };
+
+  const formatAddress = (address: string) => {
+    if (!address) return '';
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
   if (!ready) {
     return <div className="text-white text-sm">Loading...</div>;
   }
@@ -68,34 +86,48 @@ function PrivyAuth({ onAddressChange }: { onAddressChange: (address: string) => 
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex flex-col items-center gap-2 text-sm">
       {accountAddress ? (
         <>
-          {hasUsername && monadUser ? (
-            <span className="text-green-400">Monad Games ID: {monadUser.username}</span>
-          ) : (
-            <a 
-              href="https://monad-games-id-site.vercel.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-yellow-600 text-white px-2 py-1 rounded text-xs hover:bg-yellow-700"
+          <div className="flex items-center gap-2">
+            {hasUsername && monadUser ? (
+              <span className="text-green-400">Monad Games ID: {monadUser.username}</span>
+            ) : (
+              <a 
+                href="https://monad-games-id-site.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-yellow-600 text-white px-2 py-1 rounded text-xs hover:bg-yellow-700"
+              >
+                Register Username
+              </a>
+            )}
+            
+            <button 
+              onClick={logout}
+              className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
             >
-              Register Username
-            </a>
-          )}
+              Logout
+            </button>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-gray-800 px-3 py-2 rounded">
+            <span className="text-gray-300 text-xs">Address:</span>
+            <span className="text-white text-xs font-mono">{formatAddress(accountAddress)}</span>
+            <button
+              onClick={copyToClipboard}
+              className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 transition-colors"
+              title={accountAddress}
+            >
+              {copied ? '✓' : '📋'}
+            </button>
+          </div>
         </>
       ) : message ? (
         <span className="text-red-400 text-xs">{message}</span>
       ) : (
         <span className="text-yellow-400 text-xs">Checking...</span>
       )}
-      
-      <button 
-        onClick={logout}
-        className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
-      >
-        Logout
-      </button>
     </div>
   );
 }

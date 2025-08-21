@@ -87,7 +87,7 @@ After deployment, test these endpoints:
 
 3. **Get Player Data Per Game:**
    ```bash
-   curl https://your-app.vercel.app/api/get-player-data-per-game?playerAddress=0x...&gameAddress=0xf5ea577f39318dc012d5Cbbf2d447FdD76c48523
+   curl https://your-app.vercel.app/api/get-player-data-per-game?playerAddress=0x...&gameAddress=0xceCBFF203C8B6044F52CE23D914A1bfD997541A4
    ```
 
 ### In-Game Testing:
