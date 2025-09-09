@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateSessionToken, validateOrigin } from '@/app/lib/auth';
+import { generateSessionToken, validateOrigin, verifySignatureAndNonce } from '@/app/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,28 +11,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { playerAddress, signedMessage, message } = await request.json();
+    const { playerAddress, signature, nonce } = await request.json();
 
-    if (!playerAddress || !signedMessage || !message) {
+    if (!playerAddress || !signature || !nonce) {
       return NextResponse.json(
-        { error: 'Missing required fields: playerAddress, signedMessage, message' },
+        { error: 'Missing required fields: playerAddress, signature, nonce' },
         { status: 400 }
       );
     }
 
-    // Verify that the message contains the player address and a recent timestamp
-    // This should be done by checking the signature against the player's wallet
-    // For now, we'll implement a basic check - in production, you'd verify the signature
-    const expectedMessage = `Authenticate for score submission: ${playerAddress}`;
-    if (!message.includes(playerAddress)) {
+    // Verify the signature and nonce
+    const isValidSignature = await verifySignatureAndNonce(playerAddress, signature, nonce);
+    
+    if (!isValidSignature) {
       return NextResponse.json(
-        { error: 'Invalid message format' },
-        { status: 400 }
+        { error: 'Invalid signature or expired/used nonce' },
+        { status: 401 }
       );
     }
-
-    // TODO: Add proper signature verification here using viem/ethers
-    // For now, we'll trust that the frontend provides the correct signature
     
     // Generate session token
     const timestamp = Math.floor(Date.now() / 30000) * 30000; // Round to 30-second intervals

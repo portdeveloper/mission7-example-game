@@ -6,6 +6,7 @@ import { CONTRACT_ADDRESS, CONTRACT_ABI, isValidAddress } from '@/app/lib/blockc
 import { validateSessionToken, validateOrigin, createAuthenticatedResponse } from '@/app/lib/auth';
 import { rateLimit } from '@/app/lib/rate-limiter';
 import { generateRequestId, isDuplicateRequest, markRequestProcessing, markRequestComplete } from '@/app/lib/request-deduplication';
+import { getGameSession } from '@/app/lib/game-session';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const { playerAddress, scoreAmount, transactionAmount, sessionToken } = await request.json();
+    const { playerAddress, gameSessionId, sessionToken } = await request.json();
 
     // Session token authentication - verify the user controls the wallet
     if (!sessionToken || !validateSessionToken(sessionToken, playerAddress)) {
@@ -34,9 +35,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate input
-    if (!playerAddress || scoreAmount === undefined || transactionAmount === undefined) {
+    if (!playerAddress || !gameSessionId) {
       return createAuthenticatedResponse(
-        { error: 'Missing required fields: playerAddress, scoreAmount, transactionAmount' },
+        { error: 'Missing required fields: playerAddress, gameSessionId' },
         400
       );
     }
@@ -49,46 +50,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate that scoreAmount and transactionAmount are positive numbers
-    if (scoreAmount < 0 || transactionAmount < 0) {
-      return createAuthenticatedResponse(
-        { error: 'Score and transaction amounts must be non-negative' },
-        400
-      );
-    }
-
-    // Maximum limits to prevent abuse - made more restrictive
-    const MAX_SCORE_PER_REQUEST = 1000; // Reduced from 10000
-    const MAX_TRANSACTIONS_PER_REQUEST = 10; // Reduced from 100
+    // Get the validated game session
+    const gameSession = getGameSession(gameSessionId);
     
-    // Additional validation: reasonable score ranges
-    const MIN_SCORE_PER_REQUEST = 1;
-    const MAX_SCORE_PER_TRANSACTION = 100; // Max 100 points per transaction
-
-    if (scoreAmount > MAX_SCORE_PER_REQUEST || transactionAmount > MAX_TRANSACTIONS_PER_REQUEST) {
+    if (!gameSession) {
       return createAuthenticatedResponse(
-        { error: `Amounts too large. Max score: ${MAX_SCORE_PER_REQUEST}, Max transactions: ${MAX_TRANSACTIONS_PER_REQUEST}` },
+        { error: 'Invalid game session ID' },
         400
       );
     }
-
-    if (scoreAmount < MIN_SCORE_PER_REQUEST && scoreAmount !== 0) {
+    
+    if (gameSession.playerAddress !== playerAddress) {
       return createAuthenticatedResponse(
-        { error: `Score amount too small. Minimum: ${MIN_SCORE_PER_REQUEST}` },
+        { error: 'Game session belongs to different player' },
+        403
+      );
+    }
+    
+    if (gameSession.isActive) {
+      return createAuthenticatedResponse(
+        { error: 'Game session is still active. End the session first.' },
         400
       );
     }
+    
+    // Use server-validated scores from the game session
+    const scoreAmount = gameSession.score;
+    const transactionAmount = 1; // One transaction per completed game
 
-    // Validate score-to-transaction ratio to prevent unrealistic scores
-    if (transactionAmount > 0 && (scoreAmount / transactionAmount) > MAX_SCORE_PER_TRANSACTION) {
-      return createAuthenticatedResponse(
-        { error: `Score per transaction too high. Maximum: ${MAX_SCORE_PER_TRANSACTION} points per transaction` },
-        400
-      );
-    }
-
-    // Request deduplication
-    const requestId = generateRequestId(playerAddress, scoreAmount, transactionAmount);
+    // Request deduplication based on game session ID
+    const requestId = generateRequestId(playerAddress, scoreAmount, gameSessionId);
     if (isDuplicateRequest(requestId)) {
       return createAuthenticatedResponse(
         { error: 'Duplicate request detected. Please wait before retrying.' },

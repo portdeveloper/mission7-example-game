@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import crypto from 'crypto';
+import { verifyMessage } from 'viem';
 
 // Remove the problematic client-side API secret
 const SERVER_API_SECRET = process.env.API_SECRET;
@@ -10,6 +11,76 @@ if (!SERVER_API_SECRET) {
 
 export function generateApiKey(): string {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// Generate a nonce for signature verification
+export function generateNonce(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Store nonces temporarily (in production, use Redis or database)
+const activeNonces = new Map<string, { timestamp: number; used: boolean }>();
+
+// Clean up expired nonces every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  const NONCE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+  
+  for (const [nonce, data] of activeNonces.entries()) {
+    if (now - data.timestamp > NONCE_EXPIRY) {
+      activeNonces.delete(nonce);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// Generate and store a nonce
+export function createNonce(): string {
+  const nonce = generateNonce();
+  activeNonces.set(nonce, { timestamp: Date.now(), used: false });
+  return nonce;
+}
+
+// Verify signature and consume nonce
+export async function verifySignatureAndNonce(
+  address: string,
+  signature: string,
+  nonce: string
+): Promise<boolean> {
+  try {
+    // Check if nonce exists and isn't used
+    const nonceData = activeNonces.get(nonce);
+    if (!nonceData || nonceData.used) {
+      return false;
+    }
+
+    // Check if nonce is expired (5 minutes)
+    const NONCE_EXPIRY = 5 * 60 * 1000;
+    if (Date.now() - nonceData.timestamp > NONCE_EXPIRY) {
+      activeNonces.delete(nonce);
+      return false;
+    }
+
+    // Create the message that should have been signed
+    const message = `Authenticate wallet for gaming session.\nNonce: ${nonce}\nAddress: ${address}`;
+
+    // Verify the signature
+    const isValid = await verifyMessage({
+      address: address as `0x${string}`,
+      message,
+      signature: signature as `0x${string}`
+    });
+
+    if (isValid) {
+      // Mark nonce as used
+      nonceData.used = true;
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Signature verification error:', error);
+    return false;
+  }
 }
 
 // Generate a session-based token that includes player address and timestamp

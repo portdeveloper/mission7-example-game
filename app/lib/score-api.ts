@@ -37,13 +37,32 @@ interface PlayerDataPerGameResponse {
   error?: string;
 }
 
-// Get session token for authenticated requests
-export async function getSessionToken(playerAddress: string): Promise<string | null> {
+// Get nonce for signature
+export async function getNonce(playerAddress: string): Promise<{ nonce: string; message: string } | null> {
   try {
-    // In a real implementation, you would sign a message with the user's wallet here
-    const message = `Authenticate for score submission: ${playerAddress}`;
-    const signedMessage = "dummy_signature"; // This should be replaced with actual wallet signing
+    const response = await fetch('/api/get-nonce', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ playerAddress }),
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return { nonce: data.nonce, message: data.message };
+    }
     
+    return null;
+  } catch (error) {
+    console.error('Error getting nonce:', error);
+    return null;
+  }
+}
+
+// Get session token with real signature verification
+export async function getSessionToken(playerAddress: string, signature: string, nonce: string): Promise<string | null> {
+  try {
     const response = await fetch('/api/get-session-token', {
       method: 'POST',
       headers: {
@@ -51,8 +70,8 @@ export async function getSessionToken(playerAddress: string): Promise<string | n
       },
       body: JSON.stringify({
         playerAddress,
-        message,
-        signedMessage,
+        signature,
+        nonce,
       }),
     });
 
@@ -68,25 +87,13 @@ export async function getSessionToken(playerAddress: string): Promise<string | n
   }
 }
 
-// Submit player score and transaction data to the contract
-export async function submitPlayerScore(
+// Submit game session results to the contract
+export async function submitGameSession(
   playerAddress: string,
-  scoreAmount: number,
-  transactionAmount: number = 1,
-  sessionToken?: string
+  gameSessionId: string,
+  sessionToken: string
 ): Promise<ScoreSubmissionResponse> {
   try {
-    // Get session token if not provided
-    if (!sessionToken) {
-      sessionToken = await getSessionToken(playerAddress);
-      if (!sessionToken) {
-        return {
-          success: false,
-          error: 'Failed to authenticate. Please try again.',
-        };
-      }
-    }
-
     const response = await fetch('/api/update-player-data', {
       method: 'POST',
       headers: {
@@ -94,8 +101,7 @@ export async function submitPlayerScore(
       },
       body: JSON.stringify({
         playerAddress,
-        scoreAmount,
-        transactionAmount,
+        gameSessionId,
         sessionToken,
       }),
     });
@@ -103,10 +109,100 @@ export async function submitPlayerScore(
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Error submitting score:', error);
+    console.error('Error submitting game session:', error);
     return {
       success: false,
-      error: 'Failed to submit score',
+      error: 'Failed to submit game session',
+    };
+  }
+}
+
+// Start a new game session
+export async function startGameSession(
+  playerAddress: string,
+  sessionToken: string
+): Promise<{ success: boolean; gameSessionId?: string; error?: string }> {
+  try {
+    const response = await fetch('/api/game-session/start', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        playerAddress,
+        sessionToken,
+      }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error starting game session:', error);
+    return {
+      success: false,
+      error: 'Failed to start game session',
+    };
+  }
+}
+
+// Submit a game action for validation
+export async function submitGameAction(
+  playerAddress: string,
+  gameSessionId: string,
+  sessionToken: string,
+  action: { type: 'shot_fired' | 'enemy_killed'; data?: Record<string, unknown> }
+): Promise<{ success: boolean; currentScore?: number; error?: string }> {
+  try {
+    const response = await fetch('/api/game-session/action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        playerAddress,
+        gameSessionId,
+        sessionToken,
+        action,
+      }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error submitting game action:', error);
+    return {
+      success: false,
+      error: 'Failed to submit game action',
+    };
+  }
+}
+
+// End a game session
+export async function endGameSession(
+  playerAddress: string,
+  gameSessionId: string,
+  sessionToken: string
+): Promise<{ success: boolean; finalScore?: number; stats?: unknown; error?: string }> {
+  try {
+    const response = await fetch('/api/game-session/end', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        playerAddress,
+        gameSessionId,
+        sessionToken,
+      }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error ending game session:', error);
+    return {
+      success: false,
+      error: 'Failed to end game session',
     };
   }
 }
